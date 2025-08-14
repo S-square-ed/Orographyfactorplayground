@@ -1,4 +1,4 @@
-# https://S-square-ed.github.io/OrographyFactor
+# https://S-square-ed.github.io/OrographyFactorplayground
 
 # Orographic factor by QBIC
 
