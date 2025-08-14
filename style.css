@@ -130,8 +130,25 @@ tr:hover {
     font-weight: bold;
 }
 
-.disclaimer {
-    margin-top: 5px;
+footer.disclaimer {
+    background-color: #222; /* dark background */
+    color: white; /* white text */
     text-align: center;
-    font-size: 12px;
+    padding: 15px 10px;
+    font-size: 0.85em;
+    margin-top: 30px;
+}
+
+footer.disclaimer a {
+    color: white;
+    text-decoration: underline;
+}
+
+footer.disclaimer a:hover {
+    color: #ddd;
+}
+
+footer.disclaimer p {
+    margin: 0 0 5px 0;
+    line-height: 1.4;
 }
