@@ -1,4 +1,3 @@
-// Globals used by Leaflet handlers (same style as your current code)
 var map;
 var marker;
 
@@ -6,31 +5,36 @@ document.addEventListener('DOMContentLoaded', function () {
     setupProj4();
     setupInputTypeUI();
     initializeMap();
-    calculate();
+    calculate(); // initial calculation
 });
 
+/* --------------------------
+   UI: input type panels
+-------------------------- */
 function setupInputTypeUI() {
     var inputType = document.getElementById('inputType');
-
-    inputType.addEventListener('change', function () {
-        updateInputPanels();
-    });
-
+    inputType.addEventListener('change', updateInputPanels);
     updateInputPanels();
 }
 
 function updateInputPanels() {
     var type = document.getElementById('inputType').value;
 
-    var panelAddress = document.getElementById('panelAddress');
-    var panelLonLat = document.getElementById('panelLonLat');
-    var panelLambert = document.getElementById('panelLambert');
+    document.getElementById('panelAddress').classList.toggle('hidden', type !== 'address');
+    document.getElementById('panelLonLat').classList.toggle('hidden', type !== 'lonlat');
 
-    panelAddress.classList.toggle('hidden', type !== 'address');
-    panelLonLat.classList.toggle('hidden', type !== 'lonlat');
-    panelLambert.classList.toggle('hidden', type !== 'lambert');
+    var isLambert = (type === 'lambert72' || type === 'lambert2008');
+    document.getElementById('panelLambert').classList.toggle('hidden', !isLambert);
+
+    var lambertLabel = document.getElementById('lambert_input_label');
+    if (lambertLabel) {
+        lambertLabel.textContent = (type === 'lambert2008') ? 'Lambert 2008' : 'Lambert 72';
+    }
 }
 
+/* --------------------------
+   Proj4: CRS definitions
+-------------------------- */
 function setupProj4() {
     if (typeof proj4 === 'undefined') {
         console.warn('Proj4js not loaded. Lambert conversion will not work.');
@@ -53,7 +57,25 @@ function setupProj4() {
     );
 }
 
-// Entry point (keeps your button onclick="calculate();")
+function wgs84ToLambert(latitude, longitude, crs) {
+    var out = proj4("EPSG:4326", crs, [longitude, latitude]);
+    return { x: out[0], y: out[1], crs: crs };
+}
+
+function lambertToWgs84(x, y, crs) {
+    var out = proj4(crs, "EPSG:4326", [x, y]);
+    return { longitude: out[0], latitude: out[1] };
+}
+
+function setTextIfExists(id, value) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = value;
+}
+
+/* --------------------------
+   MAIN: calculate (4 modes)
+-------------------------- */
 function calculate() {
     var inputType = document.getElementById('inputType').value;
 
@@ -67,8 +89,13 @@ function calculate() {
         return;
     }
 
-    if (inputType === 'lambert') {
-        calculateFromLambert();
+    if (inputType === 'lambert72') {
+        calculateFromLambert("EPSG:31370");
+        return;
+    }
+
+    if (inputType === 'lambert2008') {
+        calculateFromLambert("EPSG:3812");
         return;
     }
 }
@@ -80,7 +107,9 @@ function calculateFromAddress() {
         return;
     }
 
-    var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(addressInput) + '&format=json&addressdetails=1';
+    var url = 'https://nominatim.openstreetmap.org/search?q='
+        + encodeURIComponent(addressInput)
+        + '&format=json&addressdetails=1';
 
     fetch(url)
         .then(response => response.json())
@@ -116,9 +145,9 @@ function calculateFromLonLat() {
     applyResolvedCoordinates(latitude, longitude, null);
 }
 
-function calculateFromLambert() {
+function calculateFromLambert(crs) {
     if (typeof proj4 === 'undefined') {
-        alert('Lambert conversion is unavailable because Proj4js did not load.');
+        alert('Lambert conversion is unavailable (Proj4js not loaded).');
         return;
     }
 
@@ -133,65 +162,64 @@ function calculateFromLambert() {
         return;
     }
 
-    var lambertSystem = document.getElementById('lambert_system').value;
+    var wgs = lambertToWgs84(x, y, crs);
 
-    // Convert Lambert -> WGS84
-    var result = proj4(lambertSystem, "EPSG:4326", [x, y]);
-    var longitude = result[0];
-    var latitude = result[1];
+    // Keep the typed Lambert for display
+    var lambertDisplay = { x: x, y: y, crs: crs };
 
-    // Keep the entered Lambert for display
-    var lambertDisplay = { x: x, y: y, crs: lambertSystem };
-
-    applyResolvedCoordinates(latitude, longitude, lambertDisplay);
+    applyResolvedCoordinates(wgs.latitude, wgs.longitude, lambertDisplay);
 }
 
-// Central function: update UI + move map + run the same calculations as before
-function applyResolvedCoordinates(latitude, longitude, lambertDisplay /* can be null */) {
-    // Update WGS84 display (IDs kept as your original)
-    var latitudeElement = document.getElementById('latitude');
-    var longitudeElement = document.getElementById('longitude');
-    latitudeElement.textContent = latitude;
-    longitudeElement.textContent = longitude;
+/* --------------------------
+   Apply coordinates (shared)
+-------------------------- */
+function applyResolvedCoordinates(latitude, longitude, lambertDisplay /* optional */) {
+    // Update existing result spans
+    setTextIfExists('latitude', latitude);
+    setTextIfExists('longitude', longitude);
 
-    // Compute Lambert for display if not provided
-    var lambertLabel = document.getElementById('lambert_label');
-    var lambertXEl = document.getElementById('lambert_x');
-    var lambertYEl = document.getElementById('lambert_y');
+    // Update inline black display
+    setTextIfExists('latitude_inline', Number.isFinite(latitude) ? latitude.toFixed(6) : '—');
+    setTextIfExists('longitude_inline', Number.isFinite(longitude) ? longitude.toFixed(6) : '—');
 
     if (typeof proj4 !== 'undefined') {
         if (!lambertDisplay) {
             // Default display for address/lonlat: Lambert 72
-            var lambertSystem = "EPSG:31370";
-            var lam = proj4("EPSG:4326", lambertSystem, [longitude, latitude]);
-            lambertDisplay = { x: lam[0], y: lam[1], crs: lambertSystem };
+            lambertDisplay = wgs84ToLambert(latitude, longitude, "EPSG:31370");
         }
 
-        lambertLabel.textContent = (lambertDisplay.crs === "EPSG:3812") ? "Lambert 2008" : "Lambert 72";
-        lambertXEl.textContent = Math.round(lambertDisplay.x * 1000) / 1000;
-        lambertYEl.textContent = Math.round(lambertDisplay.y * 1000) / 1000;
+        setTextIfExists('lambert_crs_inline',
+            lambertDisplay.crs === "EPSG:3812" ? "Lambert 2008" : "Lambert 72"
+        );
+        setTextIfExists('lambert_x_inline', (Math.round(lambertDisplay.x * 1000) / 1000));
+        setTextIfExists('lambert_y_inline', (Math.round(lambertDisplay.y * 1000) / 1000));
     } else {
-        lambertLabel.textContent = "Lambert";
-        lambertXEl.textContent = "—";
-        lambertYEl.textContent = "—";
+        setTextIfExists('lambert_crs_inline', 'Lambert');
+        setTextIfExists('lambert_x_inline', '—');
+        setTextIfExists('lambert_y_inline', '—');
     }
 
-    // Move marker & map
-    marker.setLatLng([latitude, longitude]);
-    map.setView([latitude, longitude]);
+    // Move marker and map
+    if (marker && map) {
+        marker.setLatLng([latitude, longitude]);
+        map.setView([latitude, longitude]);
+    }
 
-    // Run existing workflow (unchanged)
+    // Run the SAME workflow
     calculateElevation(latitude, longitude);
     calculateAllDirectons(latitude, longitude);
 }
 
+/* --------------------------
+   Leaflet map
+-------------------------- */
 function initializeMap() {
     var initialLatitude = 50.8503;
     var initialLongitude = 4.3517;
 
     map = L.map('map').setView([initialLatitude, initialLongitude], 13);
 
-    // IMPORTANT: use https to avoid mixed-content blocking on GitHub Pages (https site)
+    // HTTPS tiles (needed for GitHub Pages)
     var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
@@ -280,14 +308,13 @@ function initializeMap() {
 
     marker.on('dragend', function (event) {
         var markerPosition = event.target.getLatLng();
-        var latitude = markerPosition.lat;
-        var longitude = markerPosition.lng;
-
-        // Update coordinate display + run workflow
-        applyResolvedCoordinates(latitude, longitude, null);
+        applyResolvedCoordinates(markerPosition.lat, markerPosition.lng, null);
     });
 }
 
+/* --------------------------
+   Elevation sampling
+-------------------------- */
 function calculateAllDirectons(latitude, longitude) {
     calculateElevationForDirection(latitude, longitude, 'north_05km', latitude + (0.5 / 111)); // 0.5 km north
     calculateElevationForDirection(latitude, longitude, 'south_05km', latitude - (0.5 / 111)); // 0.5 km south
@@ -298,8 +325,6 @@ function calculateAllDirectons(latitude, longitude) {
     calculateElevationForDirection(latitude, longitude, 'south_1km', latitude - (1 / 111)); // 1 km south
     calculateElevationForDirection(latitude, longitude, 'east_1km', latitude, longitude + (1 / (111 * Math.cos(latitude * Math.PI / 180)))); // 1 km east
     calculateElevationForDirection(latitude, longitude, 'west_1km', latitude, longitude - (1 / (111 * Math.cos(latitude * Math.PI / 180)))); // 1 km west
-
-    // (Removed the two broken lines that referenced an undefined 'a' and a missing element)
 }
 
 function calculateElevationForDirection(latitude, longitude, direction, newLatitude = latitude, newLongitude = longitude) {
@@ -328,7 +353,6 @@ function calculateElevation(latitude, longitude) {
             if (data.elevation && data.elevation.length > 0) {
                 const elevation = data.elevation[0];
                 document.getElementById('elevation').textContent = `${elevation}`;
-                // Helps keep results up-to-date when center elevation arrives after direction calls
                 calculateTotalElevation();
             } else {
                 document.getElementById('elevation').textContent = 'Data not available';
@@ -337,6 +361,9 @@ function calculateElevation(latitude, longitude) {
         .catch(error => console.error('Error:', error));
 }
 
+/* --------------------------
+   ORIGINAL calculation logic
+-------------------------- */
 function calculateTotalElevation() {
     var elevationNorth05kmText = document.getElementById("elevation_north_05km").textContent;
     var elevationNorth1kmText = document.getElementById("elevation_north_1km").textContent;
@@ -358,7 +385,6 @@ function calculateTotalElevation() {
     var elevationWest1km = parseFloat(elevationWest1kmText.split(" ")[0]);
     var elevation = parseFloat(elevationText.split(" ")[0]);
 
-    // Guard: wait until we have numbers (prevents NaN while API calls are still loading)
     if (!Number.isFinite(elevation) ||
         !Number.isFinite(elevationNorth05km) || !Number.isFinite(elevationNorth1km) ||
         !Number.isFinite(elevationSouth05km) || !Number.isFinite(elevationSouth1km) ||
@@ -385,13 +411,21 @@ function calculateTotalElevation() {
 
     OrographyFactor = Math.ceil(OrographyFactor * 100) / 100;
 
-    document.getElementById("orography_factor").textContent = OrographyFactor;
-
     if (OrographyFactor <= 1.0) {
-        document.getElementById("orography_factor_comment").textContent = "Site is considered flat. Standard pieces may be used";
+        document.getElementById("orography_factor_comment").textContent =
+            "Site is considered flat. Standard pieces may be used";
     }
     else if (OrographyFactor > 1.15) {
-        document.getElementById("orography_factor_comment").textContent = "Site is NOT flat. A detailed analysis is required. Standard pieces may not be used without an individual stability study.";
+        document.getElementById("orography_factor_comment").textContent =
+            "Site is NOT flat. A detailed analysis is required. Standard pieces may not be used without an individual stability study.";
     }
     else if (OrographyFactor > 1.0 && OrographyFactor <= 1.15) {
         document.getElementById("orography_factor_comment").textContent =
+            "Site is NOT flat. Standard pieces may not be used without an individual stability study.";
+    }
+    else {
+        document.getElementById("orography_factor_comment").textContent = "";
+    }
+
+    document.getElementById("orography_factor").textContent = OrographyFactor.toFixed(2);
+}
