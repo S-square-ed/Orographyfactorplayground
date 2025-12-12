@@ -5,8 +5,109 @@ document.addEventListener('DOMContentLoaded', function () {
     setupProj4();
     setupInputTypeUI();
     initializeMap();
+    setupThemeToggle();
+    setupMapFullscreen();
     calculate(); // initial calculation
 });
+
+/* --------------------------
+   Theme: Dark/Light (persist)
+-------------------------- */
+function setupThemeToggle() {
+    var btn = document.getElementById('themeToggle');
+    if (!btn) return;
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        try { localStorage.setItem('theme', theme); } catch (e) { }
+        updateThemeButton();
+    }
+
+    function getInitialTheme() {
+        try {
+            var saved = localStorage.getItem('theme');
+            if (saved === 'dark' || saved === 'light') return saved;
+        } catch (e) { }
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        return prefersDark ? 'dark' : 'light';
+    }
+
+    function updateThemeButton() {
+        var theme = document.documentElement.getAttribute('data-theme') || 'light';
+        var ic = btn.querySelector('.theme-ic');
+        if (ic) ic.textContent = (theme === 'dark') ? '☀' : '☾';
+    }
+
+    btn.addEventListener('click', function () {
+        var cur = document.documentElement.getAttribute('data-theme') || 'light';
+        applyTheme(cur === 'dark' ? 'light' : 'dark');
+    });
+
+    applyTheme(getInitialTheme());
+}
+
+/* --------------------------
+   Map: Fullscreen toggle
+   - Uses Fullscreen API when available
+   - Falls back to CSS fullscreen
+-------------------------- */
+function setupMapFullscreen() {
+    var btn = document.getElementById('mapFullscreenBtn');
+    var wrap = document.getElementById('mapWrap');
+    if (!btn || !wrap) return;
+
+    function setBtnState(isFs) {
+        btn.textContent = isFs ? 'Exit full screen' : 'Full screen';
+    }
+
+    function invalidateSoon() {
+        if (!map) return;
+        setTimeout(function () { map.invalidateSize(); }, 150);
+    }
+
+    function isNativeFullscreen() {
+        return !!document.fullscreenElement;
+    }
+
+    function toggle() {
+        // Prefer native Fullscreen API
+        if (wrap.requestFullscreen && document.exitFullscreen) {
+            if (isNativeFullscreen()) {
+                document.exitFullscreen();
+            } else {
+                wrap.requestFullscreen();
+            }
+            return;
+        }
+
+        // Fallback CSS fullscreen
+        document.body.classList.toggle('map-is-fullscreen');
+        var isFs = document.body.classList.contains('map-is-fullscreen');
+        setBtnState(isFs);
+        invalidateSoon();
+    }
+
+    btn.addEventListener('click', toggle);
+
+    document.addEventListener('fullscreenchange', function () {
+        if (!wrap.requestFullscreen) return; // only if native supported
+        var isFs = isNativeFullscreen();
+        setBtnState(isFs);
+        invalidateSoon();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            if (document.body.classList.contains('map-is-fullscreen')) {
+                document.body.classList.remove('map-is-fullscreen');
+                setBtnState(false);
+                invalidateSoon();
+            }
+        }
+    });
+
+    setBtnState(false);
+}
 
 /* --------------------------
    UI: input type panels
@@ -164,7 +265,7 @@ function calculateFromLambert(crs) {
 
     var wgs = lambertToWgs84(x, y, crs);
 
-    // Keep the typed Lambert for display
+    // Keep typed Lambert for display
     var lambertDisplay = { x: x, y: y, crs: crs };
 
     applyResolvedCoordinates(wgs.latitude, wgs.longitude, lambertDisplay);
