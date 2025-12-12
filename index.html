@@ -1,97 +1,176 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Orography Factor Playground</title>
+    <link rel="stylesheet" href="style.css" />
 
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
-    <title>Orography Factor</title>
-    <script src="script.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-</head>
+    <!-- Proj4js (Lambert <-> WGS84 conversions) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.10.0/proj4.min.js" defer></script>
 
-<body>
-    <div class="main">
-        <div class="box">
-            <h1>Orography Factor</h1>
-            <div class="content">
-                <div class="input">
-                    <label for="address">Address:</label>
-                    <input type="text" class="text-input" id="address" autocomplete="off" required
-                        value="Pl. de l'Atomium 1, 1020 Bruxelles" />
-                </div>
-                <div>
-                    <button class="calculate" id="submit" onclick="calculate();">Search</button>
-                </div>
+    <!-- App -->
+    <script src="script.js" defer></script>
+  </head>
 
-                <div class="input">
-                    <label for="height">Height of tower [m]:</label>
-                    <input type="text" class="text-input" id="height" autocomplete="off" required value="30"
-                        oninput="calculateTotalElevation()" />
-                </div>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <h1>Orography Factor Playground</h1>
+        <p class="subtitle">
+          Enter a location as WGS84 coordinates, an address, or Belgian Lambert coordinates. The app resolves to WGS84,
+          fetches elevations around the site, and calculates an orography factor.
+        </p>
+      </div>
+    </header>
 
-                <div class="result" id="result">
-                    <div>Latitude: <span id="latitude"></span></div>
-                    <div>Longitude: <span id="longitude"></span></div>
-                    <div>Elevation: <span id="elevation"></span></div>
-                    <table>
-                        <tr>
-                            <th> [meters] </th>
-                            <th>1km</th>
-                            <th>05km</th>
-                        </tr>
-                        <tr>
-                            <td>North</td>
-                            <td><span id="elevation_north_1km"></span></td>
-                            <td><span id="elevation_north_05km"></span></td>
-                        </tr>
-                        <tr>
-                            <td>East</td>
-                            <td><span id="elevation_east_1km"></span></td>
-                            <td><span id="elevation_east_05km"></span></td>
-                        </tr>
-                        <tr>
-                            <td>South</td>
-                            <td><span id="elevation_south_1km"></span></td>
-                            <td><span id="elevation_south_05km"></span></td>
-                        </tr>
-                        <tr>
-                            <td>West</td>
-                            <td><span id="elevation_west_1km"></span></td>
-                            <td><span id="elevation_west_05km"></span></td>
-
-                        </tr>
-                    </table>
-                    <div></div>
-                    <h1>Orography Factor: <span id="orography_factor"></span></h1>
-                    <div><span id="orography_factor_comment"></span></div>
-                </div>
+    <main class="wrap">
+      <section class="card">
+        <form id="locationForm" autocomplete="off">
+          <div class="row">
+            <div class="field">
+              <label for="inputType">Input type</label>
+              <select id="inputType">
+                <option value="lonlat">Longitude &amp; Latitude (WGS84)</option>
+                <option value="address">Address</option>
+                <option value="lambert">Belgian Lambert coordinates</option>
+              </select>
             </div>
+
+            <div class="field">
+              <label for="zRef">Reference height z (m)</label>
+              <input id="zRef" type="number" inputmode="decimal" step="0.1" min="0" value="10" />
+              <div class="hint">Used in the “complex orography” height attenuation term.</div>
+            </div>
+          </div>
+
+          <!-- LON/LAT -->
+          <div id="panelLonLat" class="panel">
+            <div class="row">
+              <div class="field">
+                <label for="lon">Longitude</label>
+                <input id="lon" type="number" inputmode="decimal" step="any" placeholder="e.g. 4.3517" />
+              </div>
+              <div class="field">
+                <label for="lat">Latitude</label>
+                <input id="lat" type="number" inputmode="decimal" step="any" placeholder="e.g. 50.8503" />
+              </div>
+            </div>
+            <div class="hint">WGS84 decimal degrees.</div>
+          </div>
+
+          <!-- ADDRESS -->
+          <div id="panelAddress" class="panel hidden">
+            <div class="row">
+              <div class="field grow">
+                <label for="address">Address</label>
+                <input
+                  id="address"
+                  type="text"
+                  placeholder="e.g. Rue de la Loi 16, 1000 Bruxelles"
+                />
+                <div class="hint">Resolved via Open-Meteo Geocoding API.</div>
+              </div>
+              <div class="field">
+                <label for="countryCode">Country</label>
+                <input id="countryCode" type="text" maxlength="2" value="BE" />
+                <div class="hint">ISO-3166-1 alpha-2</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LAMBERT -->
+          <div id="panelLambert" class="panel hidden">
+            <div class="row">
+              <div class="field">
+                <label for="easting">Easting (X)</label>
+                <input id="easting" type="number" inputmode="decimal" step="any" placeholder="e.g. 150000" />
+              </div>
+              <div class="field">
+                <label for="northing">Northing (Y)</label>
+                <input id="northing" type="number" inputmode="decimal" step="any" placeholder="e.g. 170000" />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="field">
+                <label for="lambertCrs">Lambert CRS</label>
+                <select id="lambertCrs">
+                  <option value="auto" selected>Auto-detect</option>
+                  <option value="EPSG:31370">Lambert 72 (EPSG:31370)</option>
+                  <option value="EPSG:3812">Lambert 2008 (EPSG:3812)</option>
+                </select>
+                <div class="hint">
+                  Auto uses the northing magnitude (Lambert 72 is typically ~5,4M; Lambert 2008 ~0,6–1,8M).
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="runBtn" type="submit">Calculate</button>
+            <button id="clearBtn" type="button" class="secondary">Clear</button>
+          </div>
+
+          <!-- REQUIRED: show coordinates in black below the entry point -->
+          <div class="coords-block" aria-live="polite">
+            <div class="coords-title">Resolved coordinates</div>
+            <div id="coordsLine1" class="coords-line">—</div>
+            <div id="coordsLine2" class="coords-line">—</div>
+          </div>
+
+          <div id="status" class="status" role="status" aria-live="polite"></div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Result</h2>
+
+        <div class="result-grid">
+          <div class="metric">
+            <div class="metric-label">Orography factor</div>
+            <div class="metric-value"><span id="orography_factor">—</span></div>
+            <div id="warning" class="warning hidden"></div>
+          </div>
+
+          <div class="metric">
+            <div class="metric-label">Site elevation A<sub>c</sub> (m)</div>
+            <div class="metric-value"><span id="Ac">—</span></div>
+          </div>
+
+          <div class="metric">
+            <div class="metric-label">Mean elevation A<sub>m</sub> (m)</div>
+            <div class="metric-value"><span id="Am">—</span></div>
+          </div>
         </div>
-        <div id="map"></div>
 
-    </div>
+        <details class="details">
+          <summary>Show sampled elevations</summary>
+          <div class="table-wrap">
+            <table id="samplesTable">
+              <thead>
+                <tr>
+                  <th>Point</th>
+                  <th>Distance</th>
+                  <th>Bearing</th>
+                  <th>Lat</th>
+                  <th>Lon</th>
+                  <th>Elevation (m)</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
 
-    <footer class="disclaimer">
-    <p>
-        <em>
-            Disclaimer: The results provided are for informational purposes only and may not be fully accurate. 
-            No liability is accepted for any errors, omissions, or decisions made based on these results.  
-            All rights reserved © QBIC Architecten.  
-            Special thanks to the following API providers:
-        </em>
-    </p>
-    <div class="api-link">
-        <a href="https://nominatim.org/" target="_blank">Nominatim API</a>
-        |
-        <a href="https://open-meteo.com/" target="_blank">Open-Meteo API</a>
-    </div>
-</footer>
-
-</body>
-
+      <footer class="footer">
+        <p>
+          Data sources: Open-Meteo Geocoding API &amp; Elevation API (Copernicus DEM).
+          Coordinate transforms: Proj4js (EPSG definitions from epsg.io).
+        </p>
+        <p>All rights reserved © QBIC ARCHITECTEN BV.</p>
+      </footer>
+    </main>
+  </body>
 </html>
