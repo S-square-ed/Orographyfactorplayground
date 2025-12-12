@@ -8,17 +8,17 @@
     <link rel="stylesheet" href="style.css">
     <title>Orography Factor</title>
 
-    <!-- Proj4js (for Belgian Lambert <-> WGS84) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.10.0/proj4.min.js"></script>
-
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
+    <!-- Proj4 (Lambert <-> WGS84) -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.10.0/proj4.min.js"></script>
+
     <!-- App -->
-    <script src="script.js"></script>
+    <script defer src="script.js"></script>
 </head>
 
 <body>
@@ -27,55 +27,60 @@
             <h1>Orography Factor</h1>
             <div class="content">
 
-                <!-- NEW: Input type dropdown -->
+                <!-- Input type dropdown -->
                 <div class="input">
                     <label for="inputType">Input type:</label>
                     <select class="text-input" id="inputType">
                         <option value="lonlat">1. Longitude and latitude</option>
                         <option value="address" selected>2. Address</option>
-                        <option value="lambert">3. Belgian Lambert coordinates</option>
+                        <option value="lambert72">3. Belgian Lambert 72 (EPSG:31370)</option>
+                        <option value="lambert2008">4. Belgian Lambert 2008 (EPSG:3812)</option>
                     </select>
                 </div>
 
-                <!-- Address panel (existing) -->
+                <!-- Address (1 input) -->
                 <div class="input input-panel" id="panelAddress">
                     <label for="address">Address:</label>
-                    <input type="text" class="text-input" id="address" autocomplete="off" required
+                    <input type="text" class="text-input" id="address" autocomplete="off"
                         value="Pl. de l'Atomium 1, 1020 Bruxelles" />
                 </div>
 
-                <!-- NEW: Lon/Lat panel -->
+                <!-- Lon/Lat (2 inputs) -->
                 <div class="input input-panel hidden" id="panelLonLat">
                     <label>Longitude &amp; Latitude (WGS84):</label>
                     <div class="two-col">
-                        <input type="text" class="text-input" id="lon_input" autocomplete="off" placeholder="Longitude (e.g. 4.3517)" />
-                        <input type="text" class="text-input" id="lat_input" autocomplete="off" placeholder="Latitude (e.g. 50.8503)" />
+                        <input type="text" class="text-input" id="lon_input" autocomplete="off"
+                            placeholder="Longitude (e.g. 4.3517)" />
+                        <input type="text" class="text-input" id="lat_input" autocomplete="off"
+                            placeholder="Latitude (e.g. 50.8503)" />
                     </div>
                 </div>
 
-                <!-- NEW: Lambert panel -->
+                <!-- Lambert (2 inputs) -->
                 <div class="input input-panel hidden" id="panelLambert">
-                    <label>Belgian Lambert coordinates:</label>
+                    <label>Belgian Lambert coordinates (<span id="lambert_input_label">Lambert 72</span>):</label>
                     <div class="two-col">
-                        <input type="text" class="text-input" id="lambert_x_input" autocomplete="off" placeholder="X / Easting (m)" />
-                        <input type="text" class="text-input" id="lambert_y_input" autocomplete="off" placeholder="Y / Northing (m)" />
+                        <input type="text" class="text-input" id="lambert_x_input" autocomplete="off"
+                            placeholder="X / Easting (m)" />
+                        <input type="text" class="text-input" id="lambert_y_input" autocomplete="off"
+                            placeholder="Y / Northing (m)" />
                     </div>
+                </div>
 
-                    <label for="lambert_system" style="margin-top:8px;">Lambert system:</label>
-                    <select class="text-input" id="lambert_system">
-                        <option value="EPSG:31370" selected>Lambert 72 (EPSG:31370)</option>
-                        <option value="EPSG:3812">Lambert 2008 (EPSG:3812)</option>
-                    </select>
+                <!-- Coordinates displayed in black below entry -->
+                <div class="coord-display">
+                    <div><strong>WGS84:</strong>
+                        Lat <span id="latitude_inline">—</span> —
+                        Lon <span id="longitude_inline">—</span>
+                    </div>
+                    <div><strong><span id="lambert_crs_inline">Lambert</span>:</strong>
+                        X <span id="lambert_x_inline">—</span> —
+                        Y <span id="lambert_y_inline">—</span>
+                    </div>
                 </div>
 
                 <div>
                     <button class="calculate" id="submit" onclick="calculate();">Search</button>
-                </div>
-
-                <!-- NEW: coordinate display block (black, below entry point) -->
-                <div class="coord-display">
-                    <div><strong>WGS84:</strong> Lat <span id="latitude"></span> — Lon <span id="longitude"></span></div>
-                    <div><strong><span id="lambert_label">Lambert</span>:</strong> X <span id="lambert_x"></span> — Y <span id="lambert_y"></span></div>
                 </div>
 
                 <div class="input">
@@ -85,6 +90,8 @@
                 </div>
 
                 <div class="result" id="result">
+                    <div>Latitude: <span id="latitude"></span></div>
+                    <div>Longitude: <span id="longitude"></span></div>
                     <div>Elevation: <span id="elevation"></span></div>
                     <table>
                         <tr>
@@ -120,7 +127,6 @@
             </div>
         </div>
         <div id="map"></div>
-
     </div>
 
     <div class="disclaimer">
@@ -129,7 +135,6 @@
         <div class="api-link"><a href="https://nominatim.org/" target="_blank">Nominatim API</a></div>
         <div class="api-link"><a href="https://open-meteo.com/" target="_blank">Open-Meteo API</a></div>
     </div>
-
 </body>
 
 </html>
