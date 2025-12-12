@@ -1,12 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
+
+    <meta name="color-scheme" content="light dark">
     <title>Orography Factor</title>
+
+    <!-- Fonts (Minimal Luxury) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
 
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -24,12 +34,25 @@
 <body>
     <div class="main">
         <div class="box">
-            <h1>Orography Factor</h1>
-            <div class="content">
+            <div class="topbar">
+                <div class="brand">
+                    <h1>Orography Factor</h1>
+                    <div class="header-subtitle">
+                        Minimal tool for indicative site orography factor (0.5 km / 1 km elevation sampling).
+                    </div>
+                </div>
 
+                <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle dark/light mode"
+                    title="Toggle dark/light mode">
+                    <span class="theme-ic" aria-hidden="true">☾</span>
+                    <span class="theme-tx">Theme</span>
+                </button>
+            </div>
+
+            <div class="content">
                 <!-- Input type dropdown -->
                 <div class="input">
-                    <label for="inputType">Input type:</label>
+                    <label for="inputType">Input type</label>
                     <select class="text-input" id="inputType">
                         <option value="lonlat">1. Longitude and latitude</option>
                         <option value="address" selected>2. Address</option>
@@ -40,14 +63,14 @@
 
                 <!-- Address (1 input) -->
                 <div class="input input-panel" id="panelAddress">
-                    <label for="address">Address:</label>
+                    <label for="address">Address</label>
                     <input type="text" class="text-input" id="address" autocomplete="off"
                         value="Pl. de l'Atomium 1, 1020 Bruxelles" />
                 </div>
 
                 <!-- Lon/Lat (2 inputs) -->
                 <div class="input input-panel hidden" id="panelLonLat">
-                    <label>Longitude &amp; Latitude (WGS84):</label>
+                    <label>Longitude &amp; Latitude (WGS84)</label>
                     <div class="two-col">
                         <input type="text" class="text-input" id="lon_input" autocomplete="off"
                             placeholder="Longitude (e.g. 4.3517)" />
@@ -58,13 +81,14 @@
 
                 <!-- Lambert (2 inputs) -->
                 <div class="input input-panel hidden" id="panelLambert">
-                    <label>Belgian Lambert coordinates (<span id="lambert_input_label">Lambert 72</span>):</label>
+                    <label>Belgian Lambert coordinates (<span id="lambert_input_label">Lambert 72</span>)</label>
                     <div class="two-col">
                         <input type="text" class="text-input" id="lambert_x_input" autocomplete="off"
                             placeholder="X / Easting (m)" />
                         <input type="text" class="text-input" id="lambert_y_input" autocomplete="off"
                             placeholder="Y / Northing (m)" />
                     </div>
+                    <div class="small-note">Tip: ensure you choose the correct Lambert system (72 vs 2008).</div>
                 </div>
 
                 <!-- Coordinates displayed in black below entry -->
@@ -84,20 +108,23 @@
                 </div>
 
                 <div class="input">
-                    <label for="height">Height of tower [m]:</label>
+                    <label for="height">Height of tower [m]</label>
                     <input type="text" class="text-input" id="height" autocomplete="off" required value="30"
                         oninput="calculateTotalElevation()" />
                 </div>
 
                 <div class="result" id="result">
-                    <div>Latitude: <span id="latitude"></span></div>
-                    <div>Longitude: <span id="longitude"></span></div>
-                    <div>Elevation: <span id="elevation"></span></div>
+                    <div class="kv">
+                        <div>Latitude: <span id="latitude"></span></div>
+                        <div>Longitude: <span id="longitude"></span></div>
+                        <div>Elevation: <span id="elevation"></span></div>
+                    </div>
+
                     <table>
                         <tr>
-                            <th> [meters] </th>
+                            <th>[meters]</th>
                             <th>1km</th>
-                            <th>05km</th>
+                            <th>0.5km</th>
                         </tr>
                         <tr>
                             <td>North</td>
@@ -120,20 +147,46 @@
                             <td><span id="elevation_west_05km"></span></td>
                         </tr>
                     </table>
-                    <div></div>
-                    <h1>Orography Factor: <span id="orography_factor"></span></h1>
-                    <div><span id="orography_factor_comment"></span></div>
+
+                    <div class="factor">
+                        <div class="factor-title">Orography Factor</div>
+                        <div class="factor-value"><span id="orography_factor"></span></div>
+                        <div class="factor-note"><span id="orography_factor_comment"></span></div>
+                    </div>
                 </div>
             </div>
         </div>
-        <div id="map"></div>
+
+        <!-- Map wrapper so fullscreen includes button -->
+        <div id="mapWrap" class="map-wrap">
+            <div class="map-toolbar">
+                <button id="mapFullscreenBtn" class="map-fs-btn" type="button" title="Toggle map full screen">
+                    Full screen
+                </button>
+            </div>
+            <div id="map"></div>
+        </div>
     </div>
 
+    <!-- Expanded disclaimers -->
     <div class="disclaimer">
-        <p><em>Disclaimer: The results are provided for informational purposes only. I do not assume any
-                responsibility for the accuracy of the results. Special thanks to the following API providers:</em></p>
-        <div class="api-link"><a href="https://nominatim.org/" target="_blank">Nominatim API</a></div>
-        <div class="api-link"><a href="https://open-meteo.com/" target="_blank">Open-Meteo API</a></div>
+        <p class="disc-title">Disclaimers</p>
+
+        <ul>
+            <li><strong>Indicative tool:</strong> Outputs are indicative and must be verified with engineering judgement and project-specific checks.</li>
+            <li><strong>Not a substitute:</strong> This does not replace a full Eurocode-compliant site study where required.</li>
+            <li><strong>Coordinates:</strong> Lambert 72 and Lambert 2008 are different reference systems. Use the correct one for your source data.</li>
+            <li><strong>Data sources:</strong> Elevations and geocoding rely on third-party services and may be rate-limited, unavailable, or differ from local survey values.</li>
+            <li><strong>Safety-critical:</strong> Do not use as the sole basis for safety-critical decisions.</li>
+            <li><strong>No affiliation:</strong> This project is not affiliated with Nominatim, Open-Meteo, Leaflet, or Google.</li>
+        </ul>
+
+        <div class="disc-links">
+            <div class="api-link"><a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim API</a></div>
+            <div class="api-link"><a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo API</a></div>
+        </div>
+
+        <p class="disc-foot">© QBIC ARCHITECTEN BV — internal prototype / calculator.</p>
     </div>
 </body>
 
